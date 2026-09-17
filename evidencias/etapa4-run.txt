@@ -1,0 +1,16 @@
+$ docker volume create notas-dados
+notas-dados
+
+$ docker run -d --name notas -p 8000:8000 -v notas-dados:/app/data notas-api:1.0
+e8a4644a9812f819b51c2c506b76b8d8d0886e043b3a19d5dfb5c06c1e2d39f1
+
+$ docker ps
+CONTAINER ID   IMAGE           COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+e8a4644a9812   notas-api:1.0   "gunicorn --bind 0.0…"   5 seconds ago   Up 4 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   notas
+
+$ docker logs notas
+[2026-09-17 20:00:34 +0000] [1] [INFO] Starting gunicorn 23.0.0
+[2026-09-17 20:00:34 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2026-09-17 20:00:34 +0000] [1] [INFO] Using worker: sync
+[2026-09-17 20:00:34 +0000] [7] [INFO] Booting worker with pid: 7
+[2026-09-17 20:00:34 +0000] [8] [INFO] Booting worker with pid: 8

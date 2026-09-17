@@ -1,0 +1,83 @@
+### Libera a porta 8000 (para o contraexemplo)
+$ docker stop notas2
+notas2
+
+### Etapa 4 repetida, SEM -v
+$ docker run -d --name efemero -p 8000:8000 notas-api:1.0
+90774925b5fed713e925246f19f3534667fd8ae9954b1c21ccd457428770ecfb
+
+$ curl -X POST .../notas -d '{"texto": "nota efemera 1"}'
+{"criado_em":"2026-09-17T20:01:27.736697+00:00","id":1,"texto":"nota efemera 1"}
+
+$ curl -X POST .../notas -d '{"texto": "nota efemera 2"}'
+{"criado_em":"2026-09-17T20:01:27.754441+00:00","id":2,"texto":"nota efemera 2"}
+
+$ curl -X POST .../notas -d '{"texto": "nota efemera 3"}'
+{"criado_em":"2026-09-17T20:01:27.768493+00:00","id":3,"texto":"nota efemera 3"}
+
+
+$ curl http://localhost:8000/notas
+[
+    {
+        "criado_em": "2026-09-17T20:01:27.736697+00:00",
+        "id": 1,
+        "texto": "nota efemera 1"
+    },
+    {
+        "criado_em": "2026-09-17T20:01:27.754441+00:00",
+        "id": 2,
+        "texto": "nota efemera 2"
+    },
+    {
+        "criado_em": "2026-09-17T20:01:27.768493+00:00",
+        "id": 3,
+        "texto": "nota efemera 3"
+    }
+]
+
+$ docker exec efemero ls -la /app/data
+total 20
+drwxr-xr-x 2 appuser appuser  4096 Sep 17 20:01 .
+drwxr-xr-x 1 appuser appuser  4096 Sep 17 20:00 ..
+-rw-r--r-- 1 appuser appuser 12288 Sep 17 20:01 notas.db
+
+### Onde esses dados estao, de fato?
+$ docker inspect efemero --format '{{json .Mounts}}'
+[
+    {
+        "Type": "volume",
+        "Name": "b19ad62c33465c9330da14172efc2479b94a493f30e842ba9d7cdb222ca9fb98",
+        "Source": "/var/lib/docker/volumes/b19ad62c33465c9330da14172efc2479b94a493f30e842ba9d7cdb222ca9fb98/_data",
+        "Destination": "/app/data",
+        "Driver": "local",
+        "Mode": "",
+        "RW": true,
+        "Propagation": ""
+    }
+]
+
+### Etapa 5 repetida, SEM -v: destruir o container
+$ docker stop efemero && docker rm efemero
+efemero
+efemero
+
+$ docker volume ls --filter name=b19ad62c33465c9330da14172efc2479b94a493f30e842ba9d7cdb222ca9fb98   (volume anonimo ficou orfao)
+DRIVER    VOLUME NAME
+local     b19ad62c33465c9330da14172efc2479b94a493f30e842ba9d7cdb222ca9fb98
+
+### Subir um NOVO container, igualmente sem -v
+$ docker run -d --name efemero2 -p 8000:8000 notas-api:1.0
+4344f0f5a59aadc4405d1ec736d740b20cb04e7726f24ae4aaf7431fe6db3702
+
+$ curl http://localhost:8000/notas
+[]
+
+
+$ docker inspect efemero2 --format '{{range .Mounts}}{{.Name}}{{end}}'   (outro volume anonimo, vazio)
+fdc024671f1b9f39de887eab267a0f84b8b7540d7d29720b892fb6465fe166e8
+
+$ docker exec efemero2 ls -la /app/data
+total 20
+drwxr-xr-x 2 appuser appuser  4096 Sep 17 20:01 .
+drwxr-xr-x 1 appuser appuser  4096 Sep 17 20:00 ..
+-rw-r--r-- 1 appuser appuser 12288 Sep 17 20:01 notas.db

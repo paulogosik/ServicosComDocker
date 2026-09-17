@@ -1,0 +1,34 @@
+$ curl -s http://localhost:8000/health
+{"status":"ok"}
+
+
+$ curl -X POST http://localhost:8000/notas -H 'Content-Type: application/json' -d '{"texto": "primeira nota"}'
+{"criado_em":"2026-09-17T20:00:44.068032+00:00","id":1,"texto":"primeira nota"}
+
+
+$ curl -X POST http://localhost:8000/notas -H 'Content-Type: application/json' -d '{"texto": "segunda nota: volumes sobrevivem ao container"}'
+{"criado_em":"2026-09-17T20:00:44.082459+00:00","id":2,"texto":"segunda nota: volumes sobrevivem ao container"}
+
+
+$ curl -X POST http://localhost:8000/notas -H 'Content-Type: application/json' -d '{"texto": "terceira nota: escrita em /app/data/notas.db"}'
+{"criado_em":"2026-09-17T20:00:44.095010+00:00","id":3,"texto":"terceira nota: escrita em /app/data/notas.db"}
+
+
+$ curl http://localhost:8000/notas
+[
+    {
+        "criado_em": "2026-09-17T20:00:44.068032+00:00",
+        "id": 1,
+        "texto": "primeira nota"
+    },
+    {
+        "criado_em": "2026-09-17T20:00:44.082459+00:00",
+        "id": 2,
+        "texto": "segunda nota: volumes sobrevivem ao container"
+    },
+    {
+        "criado_em": "2026-09-17T20:00:44.095010+00:00",
+        "id": 3,
+        "texto": "terceira nota: escrita em /app/data/notas.db"
+    }
+]

@@ -1,0 +1,6 @@
+$ docker image inspect notas-api:1.0 --format 'Tamanho descompactado: {{.Size}} bytes'
+Tamanho descompactado: 48977825 bytes
+Equivalente: 49.0 MB
+
+$ docker image ls python:3.12-slim (imagem base, para comparacao)
+IMAGE   ID             DISK USAGE   CONTENT SIZE   EXTRA

@@ -1,0 +1,100 @@
+### 7.1 Onde o Docker armazena fisicamente o volume?
+
+$ docker volume inspect notas-dados --format '{{.Mountpoint}}'
+/var/lib/docker/volumes/notas-dados/_data
+
+$ ls -la /var/lib/docker/volumes/notas-dados/_data   (no macOS, host real)
+ls: /var/lib/docker/volumes/notas-dados/_data: No such file or directory
+
+$ uname -s   (host)
+Darwin
+
+$ docker info --format '{{.OperatingSystem}} | Docker Root Dir: {{.DockerRootDir}}'
+Docker Desktop | Docker Root Dir: /var/lib/docker
+
+### Esse caminho existe DENTRO da VM Linux do Docker Desktop, nao no macOS.
+### Prova: montar a raiz da VM em um container auxiliar
+$ docker run --rm -v /:/host alpine ls -la /host/var/lib/docker/volumes/notas-dados/_data
+Unable to find image 'alpine:latest' locally
+latest: Pulling from library/alpine
+5de55e5ef9c0: Pulling fs layer
+5de55e5ef9c0: Download complete
+5de55e5ef9c0: Pull complete
+aa3ec251a2db: Download complete
+df8ce8557afe: Download complete
+Digest: sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+Status: Downloaded newer image for alpine:latest
+total 20
+drwxr-xr-x    2 1000     1000          4096 Sep 17 20:00 .
+drwx-----x    3 root     root          4096 Sep 17 20:00 ..
+-rw-r--r--    1 1000     1000         12288 Sep 17 20:00 notas.db
+
+### E a VM inteira, no macOS, vive dentro de um unico arquivo de disco:
+$ ls -lh ~/Library/Containers/com.docker.docker/Data/vms/0/data/*.raw
+-rw-r--r--@ 1 paulogosik  staff   228G Sep 17 17:02 /Users/paulogosik/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+$ du -h -d0 ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw   (uso real: arquivo esparso)
+ 41G	/Users/paulogosik/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+
+### 7.2 Conteudo de /app/data dentro do container
+
+$ docker exec notas2 ls -la /app/data
+total 20
+drwxr-xr-x 2 appuser appuser  4096 Sep 17 20:00 .
+drwxr-xr-x 1 appuser appuser  4096 Sep 17 20:00 ..
+-rw-r--r-- 1 appuser appuser 12288 Sep 17 20:00 notas.db
+
+$ docker exec notas2 sh -c 'echo $DATA_DIR'
+/app/data
+
+$ docker inspect notas2 --format '{{json .Mounts}}'
+[
+    {
+        "Type": "volume",
+        "Name": "notas-dados",
+        "Source": "/var/lib/docker/volumes/notas-dados/_data",
+        "Destination": "/app/data",
+        "Driver": "local",
+        "Mode": "z",
+        "RW": true,
+        "Propagation": ""
+    }
+]
+
+### 7.3 O que acontece com os dados ao rodar 'docker volume rm notas-dados'?
+
+# (a) Com o container AINDA EXISTINDO, o Docker recusa:
+$ docker volume rm notas-dados
+Error response from daemon: remove notas-dados: volume is in use - [ade5a6309e8b90d9f562069e488306ec7b689b5348a612adbd45bc5a1c2ae98c]
+exit code: 1
+
+# (b) Container parado -- continua recusando, porque a referencia persiste:
+$ docker stop notas2
+notas2
+$ docker volume rm notas-dados
+Error response from daemon: remove notas-dados: volume is in use - [ade5a6309e8b90d9f562069e488306ec7b689b5348a612adbd45bc5a1c2ae98c]
+exit code: 1
+
+# (c) Com o container removido, o volume some -- e os dados junto:
+$ docker rm notas2
+notas2
+
+$ docker volume rm notas-dados
+notas-dados
+exit code: 0
+
+$ docker volume ls --filter name=notas-dados
+DRIVER    VOLUME NAME
+
+$ docker run --rm -v /:/host alpine ls -la /host/var/lib/docker/volumes/ | grep notas-dados || echo '(diretorio do volume nao existe mais na VM)'
+(diretorio do volume nao existe mais na VM)
+
+# (d) Recriar um container com o MESMO nome de volume nao traz os dados de volta:
+$ docker run -d --name notas3 -p 8000:8000 -v notas-dados:/app/data notas-api:1.0
+f4fd73659cb304331825e75f54e002de4cf356a352e6ab5c57eaeb52e2219588
+
+$ curl http://localhost:8000/notas
+[]
+
+
+$ docker volume inspect notas-dados --format 'Recriado em: {{.CreatedAt}}'
+Recriado em: 2026-09-17T20:03:20Z

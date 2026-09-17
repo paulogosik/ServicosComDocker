@@ -1,0 +1,54 @@
+### 1. Destruir completamente o container
+$ docker stop notas && docker rm notas
+notas
+notas
+
+$ docker ps -a --filter name=notas
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+### 2. Confirmar que o volume continua existindo
+$ docker volume ls --filter name=notas-dados
+DRIVER    VOLUME NAME
+local     notas-dados
+
+$ docker volume inspect notas-dados
+[
+    {
+        "CreatedAt": "2026-09-17T20:00:33Z",
+        "Driver": "local",
+        "Labels": null,
+        "Mountpoint": "/var/lib/docker/volumes/notas-dados/_data",
+        "Name": "notas-dados",
+        "Options": null,
+        "Scope": "local"
+    }
+]
+### 3. Subir um NOVO container com o mesmo volume
+$ docker run -d --name notas2 -p 8000:8000 -v notas-dados:/app/data notas-api:1.0
+ade5a6309e8b90d9f562069e488306ec7b689b5348a612adbd45bc5a1c2ae98c
+
+$ docker ps
+CONTAINER ID   IMAGE           COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+ade5a6309e8b   notas-api:1.0   "gunicorn --bind 0.0…"   4 seconds ago   Up 4 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   notas2
+
+### 4. Verificar que as anotacoes anteriores continuam la
+$ curl http://localhost:8000/notas
+[
+    {
+        "criado_em": "2026-09-17T20:00:44.068032+00:00",
+        "id": 1,
+        "texto": "primeira nota"
+    },
+    {
+        "criado_em": "2026-09-17T20:00:44.082459+00:00",
+        "id": 2,
+        "texto": "segunda nota: volumes sobrevivem ao container"
+    },
+    {
+        "criado_em": "2026-09-17T20:00:44.095010+00:00",
+        "id": 3,
+        "texto": "terceira nota: escrita em /app/data/notas.db"
+    }
+]
+
+Total de notas: 3
