@@ -1,43 +1,26 @@
 # notas-api
 
-Serviço de anotações em Python empacotado em imagem Docker própria, com persistência
-de dados em volume nomeado.
+API de anotações em Python, empacotada numa imagem Docker própria, com os dados
+guardados num volume nomeado.
 
-Atividade prática da disciplina de Computação em Nuvem: construção de imagem própria
-para aplicação Python e persistência de dados em volume.
+Trabalho da disciplina de Computação em Nuvem. O relatório, com as saídas de terminal
+de cada etapa, está em [RELATORIO.md](RELATORIO.md).
 
-A análise completa, com as saídas de terminal de cada etapa, está em
-[RELATORIO.md](RELATORIO.md).
+## O que o serviço faz
 
-## Estrutura
+São três rotas, na porta 8000:
 
-```
-.
-├── app.py             aplicação Flask (3 rotas, SQLite)
-├── requirements.txt   dependências (flask, gunicorn)
-├── Dockerfile         imagem própria a partir de python:3.12-slim
-├── .dockerignore      arquivos fora do contexto de build
-├── compose.yaml       orquestração opcional (build + volume + healthcheck)
-├── README.md          este arquivo
-├── RELATORIO.md       relatório da atividade
-└── evidencias/        saídas de terminal das etapas 3 a 7
-```
+- `POST /notas` recebe `{"texto": "..."}`, salva a anotação com data e hora, e
+  devolve 201 com o registro criado. Se o texto vier vazio ou faltando, devolve 400.
+- `GET /notas` lista todas as anotações, em ordem de id.
+- `GET /health` devolve `{"status": "ok"}`.
 
-## API
+As anotações vão para um banco SQLite, no arquivo `notas.db`. O diretório onde ele é
+criado vem da variável de ambiente `DATA_DIR`, que por padrão aponta para `/app/data`.
+É nesse caminho que o volume é montado, e é por isso que os dados sobrevivem ao
+container.
 
-| Método | Rota      | Corpo                  | Resposta                                        |
-| ------ | --------- | ---------------------- | ----------------------------------------------- |
-| GET    | `/health` | —                      | `{"status": "ok"}`                              |
-| POST   | `/notas`  | `{"texto": "..."}`     | `201` com `{"id", "texto", "criado_em"}`        |
-| GET    | `/notas`  | —                      | `200` com a lista de anotações, ordenada por id |
-
-`POST /notas` responde `400` se `texto` estiver ausente ou vazio.
-
-As anotações são gravadas em SQLite, no arquivo `notas.db` dentro do diretório
-apontado pela variável de ambiente `DATA_DIR` (padrão `/app/data`). A data/hora é
-gravada em UTC, no formato ISO 8601.
-
-## Executando com Docker
+## Rodando com Docker
 
 ```bash
 docker build -t notas-api:1.0 .
@@ -45,16 +28,15 @@ docker volume create notas-dados
 docker run -d --name notas -p 8000:8000 -v notas-dados:/app/data notas-api:1.0
 ```
 
-Testando:
+Criando e listando anotações:
 
 ```bash
-curl http://localhost:8000/health
 curl -X POST http://localhost:8000/notas -H "Content-Type: application/json" -d '{"texto": "primeira nota"}'
 curl http://localhost:8000/notas
 ```
 
-As anotações sobrevivem à destruição do container porque vivem no volume
-`notas-dados`, e não no sistema de arquivos efêmero do container:
+Para ver a persistência funcionando, basta destruir o container e subir outro apontando
+para o mesmo volume. As anotações continuam lá:
 
 ```bash
 docker stop notas && docker rm notas
@@ -62,25 +44,15 @@ docker run -d --name notas2 -p 8000:8000 -v notas-dados:/app/data notas-api:1.0
 curl http://localhost:8000/notas
 ```
 
-Para remover tudo, inclusive os dados:
+## Rodando com Compose
 
-```bash
-docker stop notas2 && docker rm notas2
-docker volume rm notas-dados
-```
+`docker compose up -d --build` faz a mesma coisa, já com o volume nomeado e um
+healthcheck batendo no `/health`. O `docker compose down` derruba o container e mantém
+o volume; quem apaga os dados é o `docker compose down -v`.
 
-## Executando com Docker Compose
+## Rodando sem Docker
 
-```bash
-docker compose up -d --build
-curl http://localhost:8000/health
-docker compose down
-```
-
-`docker compose down` preserva o volume. Para apagar também os dados, use
-`docker compose down -v`.
-
-## Executando localmente, sem Docker
+Útil para testar a API antes de construir a imagem:
 
 ```bash
 python3 -m venv .venv
@@ -88,13 +60,37 @@ python3 -m venv .venv
 DATA_DIR=./data .venv/bin/python app.py
 ```
 
-O servidor sobe em `http://localhost:8000` e grava em `./data/notas.db`.
+O servidor sobe em http://localhost:8000 e grava em `./data/notas.db`. Fora do
+container dá para trocar a porta com a variável `PORT`; dentro dela a porta é fixa em
+8000, definida no comando do gunicorn.
 
-## Variáveis de ambiente
+## Limpando tudo
 
-| Variável   | Padrão      | Descrição                                        |
-| ---------- | ----------- | ------------------------------------------------ |
-| `DATA_DIR` | `/app/data` | Diretório onde o banco SQLite é criado           |
-| `PORT`     | `8000`      | Porta usada apenas na execução direta via Python |
+```bash
+docker stop notas2 && docker rm notas2
+docker volume rm notas-dados
+docker image rm notas-api:1.0
+```
 
-Dentro do container a porta é fixada em 8000 pelo comando do gunicorn.
+O `docker volume rm` apaga os dados de vez, sem confirmação. Enquanto existir algum
+container apontando para o volume, mesmo parado, o Docker recusa a remoção.
+
+## Arquivos
+
+```
+app.py             a API em Flask
+requirements.txt   flask e gunicorn
+Dockerfile         a imagem, a partir de python:3.12-slim
+.dockerignore      o que fica de fora do contexto de build
+compose.yaml       o mesmo serviço em Compose
+RELATORIO.md       o relatório do trabalho
+evidencias/        as saídas de terminal das etapas 3 a 7
+```
+
+## Um detalhe do Dockerfile que me pegou
+
+A linha `VOLUME /app/data` faz o Docker criar um volume anônimo sozinho, mesmo quando o
+container sobe sem `-v`. Ou seja, os dados não ficam na camada de escrita do container,
+como eu imaginava que ficassem. Eles vão para um volume cujo nome é um hash que se
+perde assim que o container é removido. A saída do `docker inspect` que mostra isso está
+na seção 6 do relatório.
